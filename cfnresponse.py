@@ -1,9 +1,14 @@
 import json
+import logging
+
 import requests
 
 
 SUCCESS = "SUCCESS"
 FAILED = "FAILED"
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 
 def send(event, context, response_status, reason=None, response_data=None, physical_resource_id=None):
@@ -25,9 +30,9 @@ def send(event, context, response_status, reason=None, response_data=None, physi
     }
     try:
         response = requests.put(url=event['ResponseURL'], data=response_body, headers=headers)
-        print("Status code: {}".format(response.status_code))
-        print("Status message: {}".format(response.text))
+        logger.debug("Status code: {}".format(response.status_code))
+        logger.debug("Status message: {}".format(response.text))
         return True
     except Exception as exc:
-        print("Failed executing HTTP request: {}".format(exc))
+        logger.error("Failed executing HTTP request: {}".format(exc))
         return False
