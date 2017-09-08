@@ -3,3 +3,9 @@
 - Add python3 support
 - Add tox
 - Add travis support
+
+0.0.5
+======
+- Replace request with requests lib
+- Requires python 3.6 only
+- Update test
