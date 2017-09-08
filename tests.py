@@ -1,28 +1,22 @@
-import sys
-import unittest
-from functools import partial
-
-try:
-    from urllib2 import HTTPError
-except ImportError:
-    from urllib.error import HTTPError
-
-try:
-    from mock import patch, Mock, call
-except ImportError:
-    from unittest.mock import patch, Mock, call
-
-from cfnresponse import send
-
-if sys.version_info >= (3, 0):
-    open_director_patch = partial(patch, 'urllib.request.OpenerDirector.open')
-else:
-    open_director_patch = partial(patch, 'urllib2.OpenerDirector.open')
+import mock
+from unittest import TestCase
+from .cfnresponse import send
 
 
-class TestCfnResponse(unittest.TestCase):
+class GenericObject(object):
+    def __init__(self, parameters):
+        self._parameters = parameters
 
-    def _event(self):
+    def __getattr__(self, name):
+        value = self._parameters.get(name, False)
+        if not value:
+            raise ValueError(f'The value "{name}" is not valid')
+        return value
+
+
+class TestCfnResponse(TestCase):
+    @staticmethod
+    def _event():
         return {
             'StackId': 'stack_id',
             'RequestId': 'request_id',
@@ -30,34 +24,39 @@ class TestCfnResponse(unittest.TestCase):
             'ResponseURL': 'http://localhost/response'
         }
 
-    def _context(self):
-        return Mock(log_stream_name='log_stream_name')
+    @staticmethod
+    def _context():
+        obj = GenericObject({'log_stream_name': 'log_stream_name'})
+        return obj
 
-    @open_director_patch()
-    def test_cfn_send_success(self, open_mock):
-        open_mock.return_value = Mock()
-        open_mock.return_value.msg = 'OK'
-        open_mock.return_value.getcode.return_value = 200
+    @mock.patch('requests.put')
+    def test_cfn_send_success(self, requests_mock):
+
+        # Arrange
+        requests_mock.return_value.status_code = 200
+        requests_mock.return_value.text = 'OK'
+
+        # Act
         response = send(
             event=self._event(),
-            context=Mock(log_stream_name='log_stream_name'),
+            context=self._context(),
             response_status='response_status',
             response_data='response_data',
         )
+
+        # Assert
         self.assertTrue(response)
 
-    @open_director_patch()
-    def test_cfn_send_error(self, open_mock):
+    @mock.patch('requests.put', mock.Mock(side_effect=Exception()))
+    def test_cfn_send_error(self):
 
-        class MockHTTPError(HTTPError):
-            def __init__(self, code=503):
-                self.code = code
-
-        open_mock.side_effect = MockHTTPError
+        # Arrange - Act
         response = send(
             event=self._event(),
-            context=Mock(log_stream_name='log_stream_name'),
+            context=self._context(),
             response_status='response_status',
             response_data='response_data',
         )
+
+        # Assert
         self.assertFalse(response)
